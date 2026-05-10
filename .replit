@@ -22,8 +22,13 @@ name = "Start application"
 author = "agent"
 
 [workflows.workflow.metadata]
-outputType = "console"
+outputType = "webview"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "make && echo '--- Sun language compiler ready ---' && echo 'Run: ./sun ship [project_name]' && echo 'Run: ./sun build [target]' && echo 'Run: ./sun clean' && tail -f /dev/null"
+args = "make && (./sun ship demo-app 2>/dev/null || true) && ./sun serve demo-app -p 5000"
+waitForPort = 5000
+
+[[ports]]
+localPort = 5000
+externalPort = 80

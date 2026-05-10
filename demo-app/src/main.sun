@@ -1,0 +1,58 @@
+// Welcome to Sun — a reactive web programming language.
+// Components are the building blocks of your UI.
+
+component App {
+  state count = 0;
+  state title = "Sun";
+
+  fn increment() {
+    count = count + 1;
+  }
+
+  fn decrement() {
+    if (count > 0) {
+      count = count - 1;
+    }
+  }
+
+  fn reset() {
+    count = 0;
+  }
+
+  render {
+    <div class="sun-app">
+      <div class="sun-hero">
+        <h1>Welcome to {title}</h1>
+        <p>A reactive, component-based web programming language.</p>
+      </div>
+      <div class="sun-cards">
+        <div class="sun-card">
+          <h3>Components</h3>
+          <p>Build UIs with clean, composable components and reactive state.</p>
+        </div>
+        <div class="sun-card">
+          <h3>Fast</h3>
+          <p>Compiled ahead-of-time by a native C compiler for zero-overhead output.</p>
+        </div>
+        <div class="sun-card">
+          <h3>Simple</h3>
+          <p>Minimal syntax inspired by modern JavaScript — easy to read and write.</p>
+        </div>
+      </div>
+      <div class="sun-counter">
+        <h2>Interactive Counter</h2>
+        <div class="count-display">{count}</div>
+        <div class="btn-row">
+          <button class="btn btn-danger" onclick={decrement}>-</button>
+          <button class="btn btn-secondary" onclick={reset}>Reset</button>
+          <button class="btn btn-primary" onclick={increment}>+</button>
+        </div>
+      </div>
+      <div class="sun-footer">
+        <span class="sun-badge">sun v0.1.0</span>
+      </div>
+    </div>
+  }
+}
+
+mount(App, "#app");

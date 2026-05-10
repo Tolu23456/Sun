@@ -1,8 +1,8 @@
-CC=gcc
-CFLAGS=-Iinclude -Wall -Wextra -std=c11
-SRC=$(wildcard src/*.c)
-OBJ=$(SRC:.c=.o)
-TARGET=sun
+CC      = gcc
+CFLAGS  = -Iinclude -Wall -Wextra -std=c11 -O2
+SRC     = $(wildcard src/*.c)
+OBJ     = $(SRC:.c=.o)
+TARGET  = sun
 
 all: $(TARGET)
 
@@ -14,3 +14,5 @@ $(TARGET): $(OBJ)
 
 clean:
 	rm -f src/*.o $(TARGET)
+
+.PHONY: all clean
