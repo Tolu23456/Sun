@@ -53,6 +53,7 @@ typedef enum {
     TOKEN_COLON,         /* :  */
 
     /* punctuation */
+    TOKEN_AT,            /* @  */
     TOKEN_LBRACE,        /* {  */
     TOKEN_RBRACE,        /* }  */
     TOKEN_LPAREN,        /* (  */

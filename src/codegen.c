@@ -111,8 +111,8 @@ static void gen_expr(CodegenCtx *ctx, ASTNode *n) {
             if (strcmp(n->str_val, "++") == 0 || strcmp(n->str_val, "--") == 0) {
                 /* postfix: translate to setState if on state var */
                 if (n->left && n->left->type == AST_IDENT && is_state_var(ctx, n->left->str_val)) {
-                    const char *op = strcmp(n->str_val, "++") == 0 ? " + 1" : " - 1";
-                    emitf(ctx, "_s.%s%s", n->left->str_val, op);
+                    const char *op = strcmp(n->str_val, "++") == 0 ? "+" : "-";
+                    emitf(ctx, "this.setState({ %s: _s.%s %s 1 })", n->left->str_val, n->left->str_val, op);
                 } else {
                     gen_expr(ctx, n->left);
                     emit(ctx, n->str_val);
@@ -248,6 +248,7 @@ static void gen_stmt(CodegenCtx *ctx, ASTNode *n) {
  * and wrap fn references in arrow functions.
  */
 static void emit_tmpl_expr(CodegenCtx *ctx, const char *raw, int as_event) {
+    if (as_event) emit(ctx, "() => { ");
     /* Tokenise the raw expression text */
     const char *p = raw;
     while (*p) {
@@ -261,11 +262,22 @@ static void emit_tmpl_expr(CodegenCtx *ctx, const char *raw, int as_event) {
             char name[256];
             if (len >= 255) len = 255;
             memcpy(name, start, len); name[len] = '\0';
+
+            /* Check for ++ or -- immediately following state var */
+            const char *peek = p;
+            while (isspace((unsigned char)*peek)) peek++;
+            int is_inc = (peek[0] == '+' && peek[1] == '+');
+            int is_dec = (peek[0] == '-' && peek[1] == '-');
+
             if (is_state_var(ctx, name)) {
-                if (as_event) emitf(ctx, "_s.%s", name);
-                else          emitf(ctx, "_s.%s", name);
+                if (as_event && (is_inc || is_dec)) {
+                    emitf(ctx, "this.setState({ %s: _s.%s %s 1 })", name, name, is_inc ? "+" : "-");
+                    p = peek + 2;
+                } else {
+                    emitf(ctx, "_s.%s", name);
+                }
             } else if (as_event && is_fn_name(ctx, name)) {
-                emitf(ctx, "() => this.%s()", name);
+                emitf(ctx, "this.%s()", name);
             } else {
                 emit(ctx, name);
             }
@@ -297,6 +309,7 @@ static void emit_tmpl_expr(CodegenCtx *ctx, const char *raw, int as_event) {
         char cc[2] = { *p++, '\0' };
         emit(ctx, cc);
     }
+    if (as_event) emit(ctx, " }");
 }
 
 static int is_event_attr(const char *name) {
@@ -421,7 +434,16 @@ static void gen_component(CodegenCtx *ctx, ASTNode *comp) {
             emit(ctx, ") {\n");
             ctx->indent++;
             emitln(ctx, "const _s = this.state;");
-            if (m->body) gen_block(ctx, m->body);
+            if (m->body) {
+                if (m->body->type == AST_BLOCK) {
+                    gen_block(ctx, m->body);
+                } else {
+                    emit_indent(ctx);
+                    emit(ctx, "return ");
+                    gen_expr(ctx, m->body);
+                    emit(ctx, ";\n");
+                }
+            }
             ctx->indent--;
             emitln(ctx, "}");
         }
