@@ -11,6 +11,7 @@
 #include "parser.h"
 #include "codegen.h"
 #include "server.h"
+#include "archive.h"
 
 /* ── ANSI colors ────────────────────────────────────────────────── */
 #define BOLD    "\033[1m"
@@ -35,8 +36,10 @@ static void print_help(void) {
     printf(BOLD "  Usage:" RESET "  sun <command> [options]\n\n");
     printf(BOLD "  Commands:\n" RESET);
     printf("    " CYAN "ship" RESET "   <name>          Scaffold a new Sun project\n");
-    printf("    " CYAN "build" RESET "  [path]           Compile .sun sources → dist/\n");
+    printf("    " CYAN "build" RESET "  [path] [target]  Compile .sun sources\n");
     printf("    " CYAN "serve" RESET "  [path] [-p port]  Build and serve on localhost\n");
+    printf("    " CYAN "pack" RESET "   <dir> <file>     Bundle codebase into .xsun\n");
+    printf("    " CYAN "unpack" RESET " <file> <dir>     Restore codebase from .xsun\n");
     printf("    " CYAN "clean" RESET "  [path]           Remove dist/ artifacts\n");
     printf("    " CYAN "version" RESET "                 Show Sun version\n");
     printf("\n");
@@ -242,7 +245,7 @@ static char *compile_sun_file(const char *src_path, const char *title) {
 
 /* ── sun build ──────────────────────────────────────────────────── */
 
-static int cmd_build(const char *project_path) {
+static int cmd_build(const char *project_path, const char *target) {
     char entry[SUN_MAX_PATH]  = "src/main.sun";
     char title[256]           = "Sun App";
     read_sun_json(project_path, title, entry);
@@ -250,27 +253,45 @@ static int cmd_build(const char *project_path) {
     char src_path[SUN_MAX_PATH];
     snprintf(src_path, sizeof(src_path), "%s/%s", project_path, entry);
 
-    printf(BOLD "  Building " RESET "%s " DIM "→ dist/index.html\n" RESET, src_path);
-
-    char *html = compile_sun_file(src_path, title);
-    if (!html) return 1;
-
-    /* ensure dist/ exists */
-    char dist[SUN_MAX_PATH];
-    snprintf(dist, sizeof(dist), "%s/dist", project_path);
-    mkdir(dist, 0755);
-
-    char out_path[SUN_MAX_PATH];
-    snprintf(out_path, sizeof(out_path), "%s/dist/index.html", project_path);
-
-    if (sun_write_file(out_path, html) != 0) {
-        fprintf(stderr, RED "  error: cannot write '%s'\n" RESET, out_path);
+    if (strcmp(target, "web") == 0) {
+        printf(BOLD "  Building [web] " RESET "%s " DIM "→ dist/index.html\n" RESET, src_path);
+        char *html = compile_sun_file(src_path, title);
+        if (!html) return 1;
+        char dist[SUN_MAX_PATH];
+        snprintf(dist, sizeof(dist), "%s/dist", project_path);
+        mkdir(dist, 0755);
+        char out_path[SUN_MAX_PATH];
+        snprintf(out_path, sizeof(out_path), "%s/dist/index.html", project_path);
+        sun_write_file(out_path, html);
+        printf(GREEN "  ✓ Built" RESET "   %s\n", out_path);
         free(html);
-        return 1;
+    } else {
+        /* Native build: android, ios, linux */
+        printf(BOLD "  Building [%s] " RESET "%s " DIM "→ dist/native/\n" RESET, target, src_path);
+        char *source = sun_read_file(src_path);
+        if (!source) return 1;
+        Lexer lexer; SunErrors errs; errs.count = 0;
+        lexer_init(&lexer, source);
+        Parser parser;
+        parser_init(&parser, &lexer, &errs);
+        ASTNode *program = parser_parse(&parser);
+        char *c_code = codegen_native_c(program);
+
+        char dist[SUN_MAX_PATH];
+        snprintf(dist, sizeof(dist), "%s/dist/native", project_path);
+        sun_mkdir_p(dist);
+        char out_path[SUN_MAX_PATH];
+        snprintf(out_path, sizeof(out_path), "%s/dist/native/app.c", project_path);
+        sun_write_file(out_path, c_code);
+
+        printf(GREEN "  ✓ Generated" RESET " %s\n", out_path);
+        printf(DIM "  (Use a native compiler for %s to finish the build)\n" RESET, target);
+
+        free(c_code);
+        ast_free(program);
+        free(source);
     }
 
-    printf(GREEN "  ✓ Built" RESET "   %s\n", out_path);
-    free(html);
     return 0;
 }
 
@@ -340,8 +361,9 @@ int main(int argc, char *argv[]) {
 
     if (strcmp(cmd, "build") == 0) {
         const char *path = argc >= 3 ? argv[2] : ".";
+        const char *target = argc >= 4 ? argv[3] : "web";
         print_banner();
-        return cmd_build(path);
+        return cmd_build(path, target);
     }
 
     if (strcmp(cmd, "serve") == 0) {
@@ -355,6 +377,16 @@ int main(int argc, char *argv[]) {
             }
         }
         return cmd_serve(path, port);
+    }
+
+    if (strcmp(cmd, "pack") == 0) {
+        if (argc < 4) { fprintf(stderr, RED "  error: sun pack <dir> <out.xsun>\n" RESET); return 1; }
+        return sun_pack(argv[2], argv[3]);
+    }
+
+    if (strcmp(cmd, "unpack") == 0) {
+        if (argc < 4) { fprintf(stderr, RED "  error: sun unpack <file.xsun> <out_dir>\n" RESET); return 1; }
+        return sun_unpack(argv[2], argv[3]);
     }
 
     if (strcmp(cmd, "clean") == 0) {

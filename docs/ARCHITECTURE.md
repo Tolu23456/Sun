@@ -19,14 +19,21 @@ The `sun` binary (written in C) acts as a compiler, bundler, and runtime manager
 ## 3. Reactive Runtime (JS)
 The Sun JS runtime is designed to be ultra-compact (<2KB).
 - **Virtual DOM:** A lightweight VDOM implementation.
+- **Client-Side Router:** Built-in SPA routing handling history API and path matching.
 - **Batched Updates:** Reactivity is batched to ensure high frame rates.
 - **Zero Dependencies:** The runtime is standalone.
 
-## 4. Native Runtime (C)
-For server-side execution, Sun provides:
+## 4. Native Runtime & Cross-Platform (C)
+For server-side and mobile execution, Sun provides:
 - **Event Loop:** A custom epoll/kqueue-based event loop.
-- **Standard Library:** Built-in support for HTTP/TCP, File I/O, and SQLite.
-- **Memory Management:** Hybrid approach using reference counting for language objects.
+- **Native OS Bridge:** Lightweight FFI to access OS-native APIs (Notifications, Haptics, Storage) on Android (NDK), iOS, and Linux.
+- **Memory Management:** Highly optimized manual management with optional reference counting for script-level objects.
+
+## 5. .xsun Archive System
+To simplify distribution, Sun introduces the `.xsun` format:
+- **Structure:** A flat binary blob containing a file manifest followed by compressed file data (zstd/deflate).
+- **Security:** Built-in integrity checks (SHA-256).
+- **Portability:** A single `.xsun` file contains everything needed to reconstruct the project or run it in a Sun environment.
 
 ## 5. Directory Structure
 - `/src`: Compiler source (C).

@@ -55,18 +55,27 @@ Or prefix:
 let data = await fetch(url)
 ```
 
+### 1.5 SPA Routing
+Navigation is a first-class citizen.
+```sun
+page Home "/" { ... }
+page Profile "/user/:id" { ... }
+```
+
 ## 2. Runtime & Speed: "The Blazing Pillar"
 
-### 2.1 AOT Compilation
+### 2.1 AOT & Native Compilation
 Sun is compiled Ahead-of-Time.
-- **Target Browser:** Compiles to highly optimized JavaScript + a tiny (<2KB) runtime OR WebAssembly for compute-heavy logic.
-- **Target Server:** Compiles to Native Machine Code via C/LLVM for zero-overhead execution.
+- **Target Browser:** Compiles to highly optimized JavaScript + a tiny (<2KB) runtime.
+- **Target Server:** Optimized Native C-compilation. Compiles directly to a standalone binary with no external runtime dependencies.
+- **Cross-Platform (Mobile/Desktop):** Targets Linux, Android, and iOS. Uses native OS hooks for UI (Notifications, Haptics) while sharing logic.
 
 ### 2.2 Built-in Tooling
 The `sun` binary is all you need:
-- `sun build`: Compiles and bundles.
-- `sun serve`: Fast dev server with Hot Module Replacement (HMR).
-- `sun test`: Native test runner.
+- `sun build`: Compiles and bundles for web/native.
+- `sun pack`: Bundles entire codebase into a `.xsun` binary archive.
+- `sun unpack`: Restores a codebase from an `.xsun` file.
+- `sun serve`: Fast dev server with SPA support and HMR.
 
 ## 3. Developer Experience: "The Easy Pillar"
 

@@ -7,6 +7,7 @@
 typedef enum {
     AST_PROGRAM,
     AST_COMPONENT_DECL,
+    AST_PAGE_DECL,
     AST_STATE_DECL,
     AST_FN_DECL,
     AST_FN_PARAM,

@@ -677,6 +677,34 @@ ASTNode *parser_parse(Parser *p) {
 
         if (check(p, TOKEN_COMPONENT)) {
             node = parse_component(p);
+        } else if (check(p, TOKEN_PAGE)) {
+            int line = p->current.line;
+            advance(p);
+            Token name = expect(p, TOKEN_IDENTIFIER, "page name");
+            Token path = expect(p, TOKEN_STRING, "page path");
+
+            node = make_node(AST_PAGE_DECL, line);
+            node->str_val = tok_str(name);
+            node->left = make_node(AST_STRING, line);
+            int slen = path.length >= 2 ? path.length - 2 : 0;
+            node->left->str_val = malloc(slen + 1);
+            memcpy(node->left->str_val, path.start + 1, slen);
+            node->left->str_val[slen] = '\0';
+
+            expect(p, TOKEN_LBRACE, "{");
+            ASTNode *comp_tail = NULL;
+            while (!check(p, TOKEN_RBRACE) && !check(p, TOKEN_EOF)) {
+                ASTNode *member = NULL;
+                if (check(p, TOKEN_STATE))  member = parse_state_decl(p);
+                else if (check(p, TOKEN_FN)) member = parse_fn_decl(p);
+                else if (check(p, TOKEN_RENDER)) { advance(p); member = parse_render_block(p); }
+                else { advance(p); continue; }
+                if (member) {
+                    if (!node->members) { node->members = member; comp_tail = member; }
+                    else                { comp_tail->next = member; comp_tail = member; }
+                }
+            }
+            expect(p, TOKEN_RBRACE, "}");
         } else if (check(p, TOKEN_MOUNT)) {
             int line = p->current.line;
             advance(p);

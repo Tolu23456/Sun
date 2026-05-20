@@ -4,6 +4,7 @@
 typedef enum {
     /* keywords */
     TOKEN_COMPONENT,
+    TOKEN_PAGE,
     TOKEN_STATE,
     TOKEN_FN,
     TOKEN_RENDER,
