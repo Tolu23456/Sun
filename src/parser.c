@@ -650,7 +650,23 @@ static ASTNode *parse_component(Parser *p) {
         ASTNode *member = NULL;
         if (check(p, TOKEN_STATE))  member = parse_state_decl(p);
         else if (check(p, TOKEN_FN)) member = parse_fn_decl(p);
-        else if (check(p, TOKEN_RENDER)) {
+        else if (check(p, TOKEN_STYLE)) {
+            advance(p);
+            member = make_node(AST_STYLE_BLOCK, p->current.line);
+            expect(p, TOKEN_LBRACE, "{");
+            const char *start = p->current.start;
+            int depth = 1;
+            while (depth > 0 && !check(p, TOKEN_EOF)) {
+                if (check(p, TOKEN_LBRACE)) depth++;
+                else if (check(p, TOKEN_RBRACE)) depth--;
+                if (depth > 0) advance(p);
+            }
+            int len = (int)(p->current.start - start);
+            member->str_val = malloc(len + 1);
+            memcpy(member->str_val, start, len);
+            member->str_val[len] = '\0';
+            expect(p, TOKEN_RBRACE, "}");
+        } else if (check(p, TOKEN_RENDER)) {
             advance(p);
             member = parse_render_block(p);
         } else {
@@ -677,6 +693,51 @@ ASTNode *parser_parse(Parser *p) {
 
         if (check(p, TOKEN_COMPONENT)) {
             node = parse_component(p);
+        } else if (check(p, TOKEN_PAGE)) {
+            int line = p->current.line;
+            advance(p);
+            Token name = expect(p, TOKEN_IDENTIFIER, "page name");
+            Token path = expect(p, TOKEN_STRING, "page path");
+
+            node = make_node(AST_PAGE_DECL, line);
+            node->str_val = tok_str(name);
+            node->left = make_node(AST_STRING, line);
+            int slen = path.length >= 2 ? path.length - 2 : 0;
+            node->left->str_val = malloc(slen + 1);
+            memcpy(node->left->str_val, path.start + 1, slen);
+            node->left->str_val[slen] = '\0';
+
+            expect(p, TOKEN_LBRACE, "{");
+            ASTNode *comp_tail = NULL;
+            while (!check(p, TOKEN_RBRACE) && !check(p, TOKEN_EOF)) {
+                ASTNode *member = NULL;
+                if (check(p, TOKEN_STATE))  member = parse_state_decl(p);
+                else if (check(p, TOKEN_FN)) member = parse_fn_decl(p);
+                else if (check(p, TOKEN_STYLE)) {
+                    advance(p);
+                    member = make_node(AST_STYLE_BLOCK, p->current.line);
+                    expect(p, TOKEN_LBRACE, "{");
+                    const char *start = p->current.start;
+                    int depth = 1;
+                    while (depth > 0 && !check(p, TOKEN_EOF)) {
+                        if (check(p, TOKEN_LBRACE)) depth++;
+                        else if (check(p, TOKEN_RBRACE)) depth--;
+                        if (depth > 0) advance(p);
+                    }
+                    int len = (int)(p->current.start - start);
+                    member->str_val = malloc(len + 1);
+                    memcpy(member->str_val, start, len);
+                    member->str_val[len] = '\0';
+                    expect(p, TOKEN_RBRACE, "}");
+                }
+                else if (check(p, TOKEN_RENDER)) { advance(p); member = parse_render_block(p); }
+                else { advance(p); continue; }
+                if (member) {
+                    if (!node->members) { node->members = member; comp_tail = member; }
+                    else                { comp_tail->next = member; comp_tail = member; }
+                }
+            }
+            expect(p, TOKEN_RBRACE, "}");
         } else if (check(p, TOKEN_MOUNT)) {
             int line = p->current.line;
             advance(p);
@@ -695,10 +756,22 @@ ASTNode *parser_parse(Parser *p) {
             memcpy(node->left->str_val, selector_tok.start + 1, slen);
             node->left->str_val[slen] = '\0';
         } else if (check(p, TOKEN_IMPORT)) {
-            /* skip import statements for now */
-            while (!check(p, TOKEN_SEMICOLON) && !check(p, TOKEN_EOF)) advance(p);
+            int line = p->current.line;
+            advance(p);
+            expect(p, TOKEN_LBRACE, "{");
+            Token comp_name = expect(p, TOKEN_IDENTIFIER, "component name");
+            expect(p, TOKEN_RBRACE, "}");
+            expect(p, TOKEN_FROM, "from");
+            Token path_tok = expect(p, TOKEN_STRING, "import path");
             match(p, TOKEN_SEMICOLON);
-            continue;
+
+            node = make_node(AST_IMPORT_DECL, line);
+            node->str_val = tok_str(comp_name);
+            int slen = path_tok.length >= 2 ? path_tok.length - 2 : 0;
+            node->left = make_node(AST_STRING, line);
+            node->left->str_val = malloc(slen + 1);
+            memcpy(node->left->str_val, path_tok.start + 1, slen);
+            node->left->str_val[slen] = '\0';
         } else {
             advance(p);
             continue;

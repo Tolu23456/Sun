@@ -51,9 +51,11 @@ static Token make_token(Lexer *lexer, TokenType type, const char *start) {
 static TokenType keyword_type(const char *start, int len) {
     #define KW(str, tok) if (len == (int)strlen(str) && strncmp(start, str, len) == 0) return tok
     KW("component", TOKEN_COMPONENT);
+    KW("page",      TOKEN_PAGE);
     KW("state",     TOKEN_STATE);
     KW("fn",        TOKEN_FN);
     KW("render",    TOKEN_RENDER);
+    KW("style",     TOKEN_STYLE);
     KW("mount",     TOKEN_MOUNT);
     KW("if",        TOKEN_IF);
     KW("else",      TOKEN_ELSE);
@@ -167,9 +169,11 @@ Token lexer_peek_token(Lexer *lexer) {
 const char *token_type_name(TokenType t) {
     switch (t) {
         case TOKEN_COMPONENT:    return "component";
+        case TOKEN_PAGE:         return "page";
         case TOKEN_STATE:        return "state";
         case TOKEN_FN:           return "fn";
         case TOKEN_RENDER:       return "render";
+        case TOKEN_STYLE:        return "style";
         case TOKEN_MOUNT:        return "mount";
         case TOKEN_IF:           return "if";
         case TOKEN_ELSE:         return "else";

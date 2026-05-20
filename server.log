@@ -1,0 +1,6 @@
+[1m
+  ☀  Sun serve
+[0m  Compiling [36mdemo-app/src/main.sun[0m...
+[32m  ✓ Compiled successfully
+[0m[1;33m☀  Sun dev server running at http://localhost:3000[0m
+   Press Ctrl+C to stop.

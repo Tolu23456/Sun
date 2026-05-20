@@ -55,18 +55,52 @@ Or prefix:
 let data = await fetch(url)
 ```
 
+### 1.5 SPA Routing
+Navigation is a first-class citizen.
+```sun
+page Home "/" { ... }
+page Profile "/user/:id" { ... }
+```
+
+### 1.6 Pure Sun Modules & Styling
+No more external HTML/CSS. Everything is a `.sun` component.
+```sun
+import { Nav } from "./components/Nav.sun"
+
+component Header {
+  style {
+    .header { background: #333; color: white; padding: 1rem; }
+  }
+
+  render {
+    <header .header>
+      <Nav />
+      <h1>Sun Application</h1>
+    </header>
+  }
+}
+```
+
 ## 2. Runtime & Speed: "The Blazing Pillar"
 
-### 2.1 AOT Compilation
-Sun is compiled Ahead-of-Time.
-- **Target Browser:** Compiles to highly optimized JavaScript + a tiny (<2KB) runtime OR WebAssembly for compute-heavy logic.
-- **Target Server:** Compiles to Native Machine Code via C/LLVM for zero-overhead execution.
+### 2.1 SunBC & The Sun VM
+Sun moves beyond transpilation. It uses a high-performance bytecode format (**SunBC**) and a custom virtual machine (**Sun VM**).
+- **Target Server:** The server understands SunBC directly. It renders components into a stream that the client displays. No JS/HTML/CSS generation during compilation—just optimized bytecode.
+- **Unified Components:** Everything is a component. Low-level primitives like `button`, `nav`, and `div` are intrinsic components within the VM.
+- **Cross-Platform (Mobile/Desktop):** The Sun VM is ported to Linux, Android, and iOS, providing a consistent execution environment with native OS bindings.
 
 ### 2.2 Built-in Tooling
 The `sun` binary is all you need:
-- `sun build`: Compiles and bundles.
-- `sun serve`: Fast dev server with Hot Module Replacement (HMR).
-- `sun test`: Native test runner.
+- `sun build`: Compiles and bundles for web/native.
+- `sun pack`: Bundles entire codebase into a `.xsun` binary archive.
+- `sun unpack`: Restores a codebase from an `.xsun` file.
+- `sun serve`: Fast dev server with SPA support and HMR.
+
+### 2.3 Universal GUI & GPU Acceleration
+Sun is no longer limited to the browser.
+- **GPU Rendering:** Developers can enable blazing-fast hardware acceleration by setting `use_gpu = True` in their component or project config.
+- **Universal FFI:** Sun components can call functions in C, Rust, or Python with zero-overhead FFI, making it compatible with any ecosystem.
+- **Native GUI:** Primitives for Windowing, Canvas, and Input are built into the VM.
 
 ## 3. Developer Experience: "The Easy Pillar"
 

@@ -1,37 +1,32 @@
-// Sun 2.0 Showcase
-// Demonstrating compactness and reactivity.
+// Sun 5.0 Universal GUI Showcase
+import { Nav } from "./components/Nav.sun";
 
-component App {
-  state count = 0
-  state title = "Sun 2.0"
-
-  fn increment() => count++
-
-  fn decrement() {
-    if (count > 0) count--
+component Sidebar {
+  style {
+    .sidebar { width: 200px; border-right: 1px solid #333; }
   }
+  render {
+    <div .sidebar>
+      <h3>System Info</h3>
+      <p>OS: Linux</p>
+      <p>GPU: Supported</p>
+    </div>
+  }
+}
 
+page Home "/" {
   render {
     <div .sun-app>
-      <div .sun-hero>
-        <h1>Welcome to {title}</h1>
-        <p>Compact, Fast, Easy.</p>
-      </div>
-
-      <div .sun-counter>
-        <div .count-display>{count}</div>
-        <div .btn-row>
-          <button .btn .btn-danger @click={count--}>-</button>
-          <button .btn .btn-secondary @click={count = 0}>Reset</button>
-          <button .btn .btn-primary @click={increment}>+</button>
+      <Nav />
+      <div .layout-row>
+        <Sidebar />
+        <div .main-content>
+          <h1>Sun 5.0 High-Performance GUI</h1>
+          <p>This UI is running on the Sun VM with optional GPU acceleration.</p>
         </div>
-      </div>
-
-      <div .sun-footer>
-        <span .sun-badge>built with sun 2.0</span>
       </div>
     </div>
   }
 }
 
-mount(App, "#app");
+mount(Home, "#app");

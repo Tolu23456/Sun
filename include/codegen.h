@@ -21,10 +21,18 @@ typedef struct {
 void codegen_ctx_init(CodegenCtx *ctx);
 void codegen_ctx_free(CodegenCtx *ctx);
 
+void emit(CodegenCtx *ctx, const char *s);
+void emitf(CodegenCtx *ctx, const char *fmt, ...);
+void emitln(CodegenCtx *ctx, const char *s);
+void emit_indent(CodegenCtx *ctx);
+
 /* Generate JavaScript bundle string from AST. Caller must free result. */
 char *codegen_generate(ASTNode *program);
 
 /* Generate full HTML page with embedded runtime + component JS. */
 char *codegen_html_page(ASTNode *program, const char *title);
+
+/* Generate optimized native C source for server/native targets. */
+char *codegen_native_c(ASTNode *program);
 
 #endif

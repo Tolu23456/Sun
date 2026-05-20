@@ -10,7 +10,13 @@
 #include "lexer.h"
 #include "parser.h"
 #include "codegen.h"
+#include "bytecode.h"
 #include "server.h"
+#include "archive.h"
+
+/* Forward declarations for bcgen/vm functions (in bcgen.c/vm.c) */
+void bc_generate(ASTNode *program, BytecodeBuffer *bb);
+void sun_vm_execute(BytecodeBuffer *bb);
 
 /* ── ANSI colors ────────────────────────────────────────────────── */
 #define BOLD    "\033[1m"
@@ -35,8 +41,10 @@ static void print_help(void) {
     printf(BOLD "  Usage:" RESET "  sun <command> [options]\n\n");
     printf(BOLD "  Commands:\n" RESET);
     printf("    " CYAN "ship" RESET "   <name>          Scaffold a new Sun project\n");
-    printf("    " CYAN "build" RESET "  [path]           Compile .sun sources → dist/\n");
+    printf("    " CYAN "build" RESET "  [path] [target]  Compile .sun sources\n");
     printf("    " CYAN "serve" RESET "  [path] [-p port]  Build and serve on localhost\n");
+    printf("    " CYAN "pack" RESET "   <dir> <file>     Bundle codebase into .xsun\n");
+    printf("    " CYAN "unpack" RESET " <file> <dir>     Restore codebase from .xsun\n");
     printf("    " CYAN "clean" RESET "  [path]           Remove dist/ artifacts\n");
     printf("    " CYAN "version" RESET "                 Show Sun version\n");
     printf("\n");
@@ -208,41 +216,88 @@ static void read_sun_json(const char *project_path, char *title_out, char *entry
 
 /* ── compile one .sun file → HTML ───────────────────────────────── */
 
-static char *compile_sun_file(const char *src_path, const char *title) {
-    char *source = sun_read_file(src_path);
+static ASTNode *parse_file_recursive(const char *src_path, const char *base_dir, SunErrors *errors) {
+    char full_path[SUN_MAX_PATH];
+    if (src_path[0] == '/') snprintf(full_path, sizeof(full_path), "%s", src_path);
+    else snprintf(full_path, sizeof(full_path), "%s/%s", base_dir, src_path);
+
+    char *source = sun_read_file(full_path);
     if (!source) {
-        fprintf(stderr, RED "  error: cannot read '%s'\n" RESET, src_path);
+        sun_error(errors, "Cannot read file: %s", full_path);
         return NULL;
     }
 
+    Lexer lexer;
+    lexer_init(&lexer, source);
+    Parser parser;
+    parser_init(&parser, &lexer, errors);
+
+    ASTNode *program = parser_parse(&parser);
+    free(source);
+
+    /* Resolve imports */
+    ASTNode *prev = NULL;
+    ASTNode *curr = program->members;
+    while (curr) {
+        if (curr->type == AST_IMPORT_DECL) {
+            /* For this demo, we just parse the imported file and merge its members */
+            char new_base[SUN_MAX_PATH];
+            snprintf(new_base, sizeof(new_base), "%s", full_path);
+            char *last_slash = strrchr(new_base, '/');
+            if (last_slash) *last_slash = '\0';
+
+            ASTNode *imported = parse_file_recursive(curr->left->str_val, new_base, errors);
+            if (imported) {
+                ASTNode *imp_head = imported->members;
+                ASTNode *imp_tail = imp_head;
+                if (imp_tail) {
+                    while (imp_tail->next) imp_tail = imp_tail->next;
+                    imp_tail->next = curr;
+                    if (prev) prev->next = imp_head;
+                    else program->members = imp_head;
+                    prev = imp_tail;
+                }
+                imported->members = NULL;
+                ast_free(imported);
+            }
+            ASTNode *next = curr->next;
+            if (prev) prev->next = next;
+            else program->members = next;
+            curr->next = NULL;
+            ast_free(curr);
+            curr = next;
+            continue;
+        }
+        prev = curr;
+        curr = curr->next;
+    }
+
+    return program;
+}
+
+static char *compile_sun_file(const char *src_path, const char *title) {
     SunErrors errors;
     errors.count = 0;
 
-    Lexer  lexer;
-    Parser parser;
-    lexer_init(&lexer, source);
-    parser_init(&parser, &lexer, &errors);
-
-    ASTNode *program = parser_parse(&parser);
+    char base_dir[SUN_MAX_PATH] = ".";
+    ASTNode *program = parse_file_recursive(src_path, base_dir, &errors);
 
     if (errors.count > 0) {
-        fprintf(stderr, RED "\n  Compile errors in %s:\n" RESET, src_path);
+        fprintf(stderr, RED "\n  Compile errors:\n" RESET);
         for (int i = 0; i < errors.count; i++)
             fprintf(stderr, "    %s\n", errors.messages[i]);
         ast_free(program);
-        free(source);
         return NULL;
     }
 
     char *html = codegen_html_page(program, title);
     ast_free(program);
-    free(source);
     return html;
 }
 
 /* ── sun build ──────────────────────────────────────────────────── */
 
-static int cmd_build(const char *project_path) {
+static int cmd_build(const char *project_path, const char *target) {
     char entry[SUN_MAX_PATH]  = "src/main.sun";
     char title[256]           = "Sun App";
     read_sun_json(project_path, title, entry);
@@ -250,27 +305,45 @@ static int cmd_build(const char *project_path) {
     char src_path[SUN_MAX_PATH];
     snprintf(src_path, sizeof(src_path), "%s/%s", project_path, entry);
 
-    printf(BOLD "  Building " RESET "%s " DIM "→ dist/index.html\n" RESET, src_path);
-
-    char *html = compile_sun_file(src_path, title);
-    if (!html) return 1;
-
-    /* ensure dist/ exists */
-    char dist[SUN_MAX_PATH];
-    snprintf(dist, sizeof(dist), "%s/dist", project_path);
-    mkdir(dist, 0755);
-
-    char out_path[SUN_MAX_PATH];
-    snprintf(out_path, sizeof(out_path), "%s/dist/index.html", project_path);
-
-    if (sun_write_file(out_path, html) != 0) {
-        fprintf(stderr, RED "  error: cannot write '%s'\n" RESET, out_path);
+    if (strcmp(target, "web") == 0) {
+        printf(BOLD "  Building [web] " RESET "%s " DIM "→ dist/index.html\n" RESET, src_path);
+        char *html = compile_sun_file(src_path, title);
+        if (!html) return 1;
+        char dist[SUN_MAX_PATH];
+        snprintf(dist, sizeof(dist), "%s/dist", project_path);
+        mkdir(dist, 0755);
+        char out_path[SUN_MAX_PATH];
+        snprintf(out_path, sizeof(out_path), "%s/dist/index.html", project_path);
+        sun_write_file(out_path, html);
+        printf(GREEN "  ✓ Built" RESET "   %s\n", out_path);
         free(html);
-        return 1;
+    } else {
+        /* Native build: android, ios, linux */
+        printf(BOLD "  Building [%s] " RESET "%s " DIM "→ dist/native/\n" RESET, target, src_path);
+        char *source = sun_read_file(src_path);
+        if (!source) return 1;
+        Lexer lexer; SunErrors errs; errs.count = 0;
+        lexer_init(&lexer, source);
+        Parser parser;
+        parser_init(&parser, &lexer, &errs);
+        ASTNode *program = parser_parse(&parser);
+        char *c_code = codegen_native_c(program);
+
+        char dist[SUN_MAX_PATH];
+        snprintf(dist, sizeof(dist), "%s/dist/native", project_path);
+        sun_mkdir_p(dist);
+        char out_path[SUN_MAX_PATH];
+        snprintf(out_path, sizeof(out_path), "%s/dist/native/app.c", project_path);
+        sun_write_file(out_path, c_code);
+
+        printf(GREEN "  ✓ Generated" RESET " %s\n", out_path);
+        printf(DIM "  (Use a native compiler for %s to finish the build)\n" RESET, target);
+
+        free(c_code);
+        ast_free(program);
+        free(source);
     }
 
-    printf(GREEN "  ✓ Built" RESET "   %s\n", out_path);
-    free(html);
     return 0;
 }
 
@@ -340,8 +413,29 @@ int main(int argc, char *argv[]) {
 
     if (strcmp(cmd, "build") == 0) {
         const char *path = argc >= 3 ? argv[2] : ".";
+        const char *target = argc >= 4 ? argv[3] : "web";
         print_banner();
-        return cmd_build(path);
+        return cmd_build(path, target);
+    }
+
+    if (strcmp(cmd, "run") == 0) {
+        if (argc < 3) { fprintf(stderr, RED "  error: sun run <file.sun> [--use_gpu]\n" RESET); return 1; }
+        SunErrors errors; errors.count = 0;
+        ASTNode *program = parse_file_recursive(argv[2], ".", &errors);
+        if (!program || errors.count > 0) return 1;
+
+        BytecodeBuffer bb;
+        memset(&bb, 0, sizeof(bb));
+        bb.use_gpu = 0;
+        for (int i = 3; i < argc; i++) {
+            if (strcmp(argv[i], "--use_gpu") == 0) bb.use_gpu = 1;
+        }
+
+        bc_generate(program, &bb);
+        sun_vm_execute(&bb);
+        ast_free(program);
+        free(bb.code);
+        return 0;
     }
 
     if (strcmp(cmd, "serve") == 0) {
@@ -355,6 +449,16 @@ int main(int argc, char *argv[]) {
             }
         }
         return cmd_serve(path, port);
+    }
+
+    if (strcmp(cmd, "pack") == 0) {
+        if (argc < 4) { fprintf(stderr, RED "  error: sun pack <dir> <out.xsun>\n" RESET); return 1; }
+        return sun_pack(argv[2], argv[3]);
+    }
+
+    if (strcmp(cmd, "unpack") == 0) {
+        if (argc < 4) { fprintf(stderr, RED "  error: sun unpack <file.xsun> <out_dir>\n" RESET); return 1; }
+        return sun_unpack(argv[2], argv[3]);
     }
 
     if (strcmp(cmd, "clean") == 0) {
