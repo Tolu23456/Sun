@@ -1,23 +1,35 @@
-# Sun Architecture Design
+# Sun Architecture Design 2.0
 
-Sun is an AOT-compiled language designed to be a high-performance, script-like runtime engine for modern web development.
+Sun is an AOT-compiled language and runtime designed for the modern web.
 
-## Core Pillars
-- **Simplicity:** Clean, minimal syntax inspired by modern JS.
-- **Performance:** AOT compilation for machine code output.
-- **Flexibility:** C-based runtime for easy FFI and low-level control.
+## 1. Tooling Strategy: "The Unified Binary"
+The `sun` binary (written in C) acts as a compiler, bundler, and runtime manager. It avoids the "dependency hell" of modern JS tooling by embedding everything needed to build and run applications.
 
-## Component Stack
-1. **Frontend:**
-    - Scanner/Lexer: Tokenizes the input source.
-    - Parser: Builds an AST (Abstract Syntax Tree).
-    - Semantic Analyzer: Ensures type safety and scope validation.
-2. **Intermediate Layer:**
-    - IR Generation: Converts AST to a machine-agnostic representation.
-3. **Backend:**
-    - Code Generator: Translates IR to C code or directly to LLVM IR.
-    - Compiler: Uses system C compiler or LLVM to produce an executable.
-4. **Runtime (C):**
-    - Memory Management: Custom allocator or wrapper around `malloc/free`.
-    - Event Loop: Asynchronous I/O handling (similar to libuv/Bun).
-    - Standard Library: Web-focused built-ins (net, fs, etc.).
+## 2. Compilation Pipeline
+1.  **Frontend (C):**
+    - **Lexer:** Tokenizes `.sun` files, including embedded templates.
+    - **Parser:** Constructs a Unified AST representing logic and UI.
+    - **Semantic Analyzer:** Performs type inference and reactivity mapping.
+2.  **Intermediate Layer:**
+    - **Sun IR:** A high-level intermediate representation optimized for reactivity.
+3.  **Backend Targets:**
+    - **Web Backend:** Generates optimized ES6+ code and a minimal reactive runtime. Future support for WASM for compute-intensive blocks.
+    - **Native Backend:** Generates C code, which is then compiled via Clang/GCC to native binaries for server-side execution.
+
+## 3. Reactive Runtime (JS)
+The Sun JS runtime is designed to be ultra-compact (<2KB).
+- **Virtual DOM:** A lightweight VDOM implementation.
+- **Batched Updates:** Reactivity is batched to ensure high frame rates.
+- **Zero Dependencies:** The runtime is standalone.
+
+## 4. Native Runtime (C)
+For server-side execution, Sun provides:
+- **Event Loop:** A custom epoll/kqueue-based event loop.
+- **Standard Library:** Built-in support for HTTP/TCP, File I/O, and SQLite.
+- **Memory Management:** Hybrid approach using reference counting for language objects.
+
+## 5. Directory Structure
+- `/src`: Compiler source (C).
+- `/include`: Header files.
+- `/runtime`: Target-specific runtime implementations.
+- `/docs`: Specification and architectural details.

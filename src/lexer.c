@@ -141,6 +141,7 @@ Token lexer_next_token(Lexer *lexer) {
         case '<': return make_token(lexer, TOKEN_LT,        start);
         case '>': return make_token(lexer, TOKEN_GT,        start);
         case '!': return make_token(lexer, TOKEN_NOT,       start);
+        case '@': return make_token(lexer, TOKEN_AT,        start);
         case '{': return make_token(lexer, TOKEN_LBRACE,    start);
         case '}': return make_token(lexer, TOKEN_RBRACE,    start);
         case '(': return make_token(lexer, TOKEN_LPAREN,    start);
@@ -192,6 +193,7 @@ const char *token_type_name(TokenType t) {
         case TOKEN_AND:          return "&&";
         case TOKEN_OR:           return "||";
         case TOKEN_NOT:          return "!";
+        case TOKEN_AT:           return "@";
         case TOKEN_PLUS:         return "+";
         case TOKEN_MINUS:        return "-";
         case TOKEN_STAR:         return "*";

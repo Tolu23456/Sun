@@ -296,8 +296,18 @@ static ASTNode *parse_stmt(Parser *p) {
         expect(p, TOKEN_RPAREN, ")");
         ASTNode *n   = make_node(AST_IF_STMT, line);
         n->left      = cond;
-        n->body      = parse_block(p);
-        if (match(p, TOKEN_ELSE)) n->else_br = parse_block(p);
+        if (check(p, TOKEN_LBRACE)) {
+            n->body = parse_block(p);
+        } else {
+            n->body = parse_stmt(p);
+        }
+        if (match(p, TOKEN_ELSE)) {
+            if (check(p, TOKEN_LBRACE)) {
+                n->else_br = parse_block(p);
+            } else {
+                n->else_br = parse_stmt(p);
+            }
+        }
         return n;
     }
     if (check(p, TOKEN_RETURN)) {
@@ -319,6 +329,17 @@ static ASTNode *parse_stmt(Parser *p) {
     }
     /* expression statement (assignment, call, ++/--, etc.) */
     ASTNode *e = parse_expr(p);
+    if (e->type == AST_IDENT && match(p, TOKEN_PLUS_PLUS)) {
+        ASTNode *u = make_node(AST_UNARY, line);
+        u->str_val = strdup("++");
+        u->left = e;
+        e = u;
+    } else if (e->type == AST_IDENT && match(p, TOKEN_MINUS_MINUS)) {
+        ASTNode *u = make_node(AST_UNARY, line);
+        u->str_val = strdup("--");
+        u->left = e;
+        e = u;
+    }
     match(p, TOKEN_SEMICOLON);
     ASTNode *s = make_node(AST_EXPR_STMT, line);
     s->left    = e;
@@ -394,6 +415,29 @@ static ASTNode *parse_tmpl_at(const char **cur, int *line) {
         return n;
     }
 
+    /* @event shorthand */
+    if (**cur == '@') {
+        (*cur)++;
+        char *tag = read_tag_name(cur);
+        ASTNode *attr = make_node(AST_ATTR, *line);
+        /* prepend 'on' to the event name */
+        char *on_event = malloc(strlen(tag) + 3);
+        strcpy(on_event, "on");
+        strcat(on_event, tag);
+        attr->str_val = on_event;
+        free(tag);
+
+        if (**cur == '=') {
+            (*cur)++;
+            if (**cur == '{') {
+                (*cur)++;
+                attr->left = make_node(AST_INTERPOLATION, *line);
+                attr->left->str_val = read_until_close_brace(cur);
+            }
+        }
+        return attr;
+    }
+
     /* <tag ...> element */
     if (**cur == '<' && *(*cur+1) != '/') {
         (*cur)++; /* eat < */
@@ -409,19 +453,38 @@ static ASTNode *parse_tmpl_at(const char **cur, int *line) {
         for (;;) {
             skip_template_ws(cur);
             if (!**cur || **cur == '>' || (**cur == '/' && *(*cur+1) == '>')) break;
-            /* attribute name */
-            const char *astart = *cur;
-            while (**cur && **cur != '=' && **cur != '>' && **cur != ' ' &&
-                   **cur != '\t' && **cur != '\n' && **cur != '/' && **cur != '{')
+            /* attribute name / shorthand */
+            ASTNode *attr = NULL;
+            if (**cur == '.') {
                 (*cur)++;
-            int alen = (int)(*cur - astart);
-            if (alen == 0) break;
-            char *aname = malloc(alen + 1);
-            memcpy(aname, astart, alen);
-            aname[alen] = '\0';
+                char *name = read_tag_name(cur);
+                attr = make_node(AST_ATTR, *line);
+                attr->str_val = strdup("class");
+                attr->left = make_node(AST_STRING, *line);
+                attr->left->str_val = name;
+            } else if (**cur == '@') {
+                (*cur)++;
+                char *name = read_tag_name(cur);
+                attr = make_node(AST_ATTR, *line);
+                char *on_event = malloc(strlen(name) + 3);
+                strcpy(on_event, "on");
+                strcat(on_event, name);
+                attr->str_val = on_event;
+                free(name);
+            } else {
+                const char *astart = *cur;
+                while (**cur && **cur != '=' && **cur != '>' && **cur != ' ' &&
+                       **cur != '\t' && **cur != '\n' && **cur != '/' && **cur != '{')
+                    (*cur)++;
+                int alen = (int)(*cur - astart);
+                if (alen == 0) break;
+                char *aname = malloc(alen + 1);
+                memcpy(aname, astart, alen);
+                aname[alen] = '\0';
 
-            ASTNode *attr = make_node(AST_ATTR, *line);
-            attr->str_val = aname;
+                attr = make_node(AST_ATTR, *line);
+                attr->str_val = aname;
+            }
 
             if (**cur == '=') {
                 (*cur)++;
@@ -560,10 +623,16 @@ static ASTNode *parse_fn_decl(Parser *p) {
         if (!match(p, TOKEN_COMMA)) break;
     }
     expect(p, TOKEN_RPAREN, ")");
+
     ASTNode *n    = make_node(AST_FN_DECL, line);
     n->str_val    = tok_str(name);
     n->params     = param_head;
-    n->body       = parse_block(p);
+
+    if (match(p, TOKEN_ARROW)) {
+        n->body = parse_expr(p);
+    } else {
+        n->body = parse_block(p);
+    }
     return n;
 }
 
