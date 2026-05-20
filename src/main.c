@@ -45,6 +45,7 @@ static void print_help(void) {
     printf("    " CYAN "serve" RESET "  [path] [-p port]  Build and serve on localhost\n");
     printf("    " CYAN "pack" RESET "   <dir> <file>     Bundle codebase into .xsun\n");
     printf("    " CYAN "unpack" RESET " <file> <dir>     Restore codebase from .xsun\n");
+    printf("    " CYAN "dist" RESET "   <dir> <format>   Build native app (exe, appimage, etc)\n");
     printf("    " CYAN "clean" RESET "  [path]           Remove dist/ artifacts\n");
     printf("    " CYAN "version" RESET "                 Show Sun version\n");
     printf("\n");
@@ -459,6 +460,66 @@ int main(int argc, char *argv[]) {
     if (strcmp(cmd, "unpack") == 0) {
         if (argc < 4) { fprintf(stderr, RED "  error: sun unpack <file.xsun> <out_dir>\n" RESET); return 1; }
         return sun_unpack(argv[2], argv[3]);
+    }
+
+    if (strcmp(cmd, "dist") == 0) {
+        if (argc < 4) { fprintf(stderr, RED "  error: sun dist <dir> <format> [--icon icon.png]\n" RESET); return 1; }
+        const char *dir = argv[2];
+        const char *fmt = argv[3];
+        const char *icon = NULL;
+        for (int i = 4; i < argc; i++) {
+            if (strcmp(argv[i], "--icon") == 0 && i + 1 < argc) icon = argv[++i];
+        }
+        printf(BOLD "  Distributing " RESET "%s " DIM "as %s\n" RESET, dir, fmt);
+
+        /* 1. Pack to temporary .xsun */
+        sun_pack(dir, ".temp.xsun");
+
+        /* 2. Fuse with self (the sun binary) */
+        char out_name[256];
+        snprintf(out_name, sizeof(out_name), "dist/app.%s", fmt);
+        sun_mkdir_p("dist");
+
+        FILE *fout = fopen(out_name, "wb");
+        FILE *fvm  = fopen(argv[0], "rb");
+        FILE *farc = fopen(".temp.xsun", "rb");
+
+        if (fout && fvm && farc) {
+            char buf[8192]; size_t n;
+            while ((n = fread(buf, 1, sizeof(buf), fvm)) > 0) fwrite(buf, 1, n, fout);
+
+            /* Append archive offset marker */
+            long archive_offset = ftell(fout);
+            while ((n = fread(buf, 1, sizeof(buf), farc)) > 0) fwrite(buf, 1, n, fout);
+
+            /* Footer for discovery */
+            fwrite(&archive_offset, sizeof(long), 1, fout);
+            fwrite("SUNAPP", 6, 1, fout);
+
+            fclose(fout); fclose(fvm); fclose(farc);
+            chmod(out_name, 0755);
+            printf(GREEN "  ✓ Created" RESET " %s\n", out_name);
+
+            if (strcmp(fmt, "deb") == 0) {
+                printf(DIM "  (Wrapping as Debian package...)\n" RESET);
+                sun_mkdir_p("dist/deb/DEBIAN");
+                sun_mkdir_p("dist/deb/usr/share/icons");
+                if (icon) {
+                    char icmd[512];
+                    snprintf(icmd, sizeof(icmd), "cp %s dist/deb/usr/share/icons/app.png", icon);
+                    system(icmd);
+                }
+                sun_write_file("dist/deb/DEBIAN/control", "Package: sun-app\nVersion: 1.0\nArchitecture: amd64\nMaintainer: Sun\nDescription: Sun Native App\n");
+                char cmd[512];
+                snprintf(cmd, sizeof(cmd), "cp %s dist/deb/sun-app && chmod +x dist/deb/sun-app", out_name);
+                system(cmd);
+                printf(GREEN "  ✓ Package structure ready in dist/deb/\n" RESET);
+            }
+        } else {
+            fprintf(stderr, RED "  error: distribution failed\n" RESET);
+        }
+        unlink(".temp.xsun");
+        return 0;
     }
 
     if (strcmp(cmd, "clean") == 0) {
