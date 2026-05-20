@@ -1,43 +1,30 @@
+// Sun 5.0 Universal GUI Showcase
 import { Nav } from "./components/Nav.sun";
+
+component Sidebar {
+  style {
+    .sidebar { width: 200px; border-right: 1px solid #333; }
+  }
+  render {
+    <div .sidebar>
+      <h3>System Info</h3>
+      <p>OS: Linux</p>
+      <p>GPU: Supported</p>
+    </div>
+  }
+}
 
 page Home "/" {
   render {
     <div .sun-app>
       <Nav />
-      <div .sun-hero>
-        <h1>Pure Sun SPA</h1>
-        <p>No HTML, No CSS, Just Sun.</p>
+      <div .layout-row>
+        <Sidebar />
+        <div .main-content>
+          <h1>Sun 5.0 High-Performance GUI</h1>
+          <p>This UI is running on the Sun VM with optional GPU acceleration.</p>
+        </div>
       </div>
-
-      <div .sun-footer>
-        <span .sun-badge>modular architecture</span>
-      </div>
-    </div>
-  }
-}
-
-page Counter "/counter" {
-  state count = 0
-
-  render {
-    <div .sun-app>
-      <Nav />
-      <h2>Modular Counter</h2>
-      <div .count-display>{count}</div>
-      <div .btn-row>
-        <button .btn .btn-danger @click={count--}>-</button>
-        <button .btn .btn-primary @click={count++}>+</button>
-      </div>
-    </div>
-  }
-}
-
-page About "/about" {
-  render {
-    <div .sun-app>
-      <Nav />
-      <h2>About Pure Sun</h2>
-      <p .sun-card>Every component is a .sun file with integrated logic and styling.</p>
     </div>
   }
 }

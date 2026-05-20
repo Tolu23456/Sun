@@ -7,7 +7,7 @@ void sun_vm_execute(BytecodeBuffer *bb) {
     double stack[256];
     int sp = 0;
 
-    printf("  [VM] Starting execution...\n");
+    printf("  [VM] Starting execution... (GPU: %s)\n", bb->use_gpu ? "ENABLED" : "OFF");
     while (ip < bb->size) {
         uint8_t op = bb->code[ip++];
         switch (op) {
@@ -34,6 +34,10 @@ void sun_vm_execute(BytecodeBuffer *bb) {
             case OP_PRIMITIVE_SPAN: printf("  [VM] <span />\n"); break;
             case OP_PRIMITIVE_NAV: printf("  [VM] <nav />\n"); break;
             case OP_PRIMITIVE_TEXT: printf("  [VM] \"text content\"\n"); break;
+            case OP_GUI_WINDOW: printf("  [VM] Creating Native GUI Window...\n"); break;
+            case OP_GUI_RECT: printf("  [VM] Drawing Rect %s\n", bb->use_gpu ? "[GPU ACCELERATED]" : "[Software]"); break;
+            case OP_GPU_SYNC: if (bb->use_gpu) printf("  [VM] GPU Buffer Sync\n"); break;
+            case OP_FFI_CALL: printf("  [VM] FFI: Calling External C Function...\n"); break;
             default:
                 break;
         }

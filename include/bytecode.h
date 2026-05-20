@@ -27,10 +27,18 @@ typedef enum {
     OP_PRIMITIVE_BUTTON,
     OP_PRIMITIVE_SPAN,
     OP_PRIMITIVE_NAV,
-    OP_PRIMITIVE_TEXT
+    OP_PRIMITIVE_TEXT,
+    /* Advanced GUI & GPU */
+    OP_GUI_WINDOW,
+    OP_GUI_CANVAS,
+    OP_GUI_RECT,
+    OP_GUI_CIRCLE,
+    OP_GPU_SYNC,
+    OP_FFI_CALL
 } OpCode;
 
 typedef struct {
+    int use_gpu;
     uint8_t *code;
     int size;
     int capacity;

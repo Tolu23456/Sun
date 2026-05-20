@@ -26,11 +26,15 @@ For server-side and mobile execution, Sun provides:
 - **Native OS Bridge:** Lightweight FFI to access OS-native APIs (Notifications, Haptics, Storage) on Android (NDK), iOS, and Linux.
 - **Memory Management:** Highly optimized manual management with optional reference counting for script-level objects.
 
-## 5. .xsun Archive System
-To simplify distribution, Sun introduces the `.xsun` format:
-- **Structure:** A flat binary blob containing a file manifest followed by compressed file data (zstd/deflate).
-- **Security:** Built-in integrity checks (SHA-256).
-- **Portability:** A single `.xsun` file contains everything needed to reconstruct the project or run it in a Sun environment.
+## 5. .xsun Archive System (XSUN03)
+The `.xsun` format is optimized for "perfect fidelity" distribution:
+- **Perfect Fidelity:** XSUN03 preserves all file attributes, permissions, and directory structures exactly as they were in the original codebase.
+- **Asset Bundling:** Images, config files (`config.json`), and binaries are handled as high-priority blobs.
+- **Portability:** Reconstructing a project from `.xsun` is guaranteed to be bit-for-bit identical to the source.
+
+## 6. GPU & Universal FFI
+- **GPU Backend:** When `use_gpu` is enabled, the VM offloads UI draw calls to a Vulkan/Metal/DirectX abstraction layer.
+- **C-ABI Compatibility:** The Sun VM uses a libffi-based bridge to allow seamless interaction with other programming languages.
 
 ## 5. Directory Structure
 - `/src`: Compiler source (C).

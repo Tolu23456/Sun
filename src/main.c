@@ -419,11 +419,18 @@ int main(int argc, char *argv[]) {
     }
 
     if (strcmp(cmd, "run") == 0) {
-        if (argc < 3) { fprintf(stderr, RED "  error: sun run <file.sun>\n" RESET); return 1; }
+        if (argc < 3) { fprintf(stderr, RED "  error: sun run <file.sun> [--use_gpu]\n" RESET); return 1; }
         SunErrors errors; errors.count = 0;
         ASTNode *program = parse_file_recursive(argv[2], ".", &errors);
-        if (errors.count > 0) return 1;
+        if (!program || errors.count > 0) return 1;
+
         BytecodeBuffer bb;
+        memset(&bb, 0, sizeof(bb));
+        bb.use_gpu = 0;
+        for (int i = 3; i < argc; i++) {
+            if (strcmp(argv[i], "--use_gpu") == 0) bb.use_gpu = 1;
+        }
+
         bc_generate(program, &bb);
         sun_vm_execute(&bb);
         ast_free(program);

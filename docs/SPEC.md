@@ -96,6 +96,12 @@ The `sun` binary is all you need:
 - `sun unpack`: Restores a codebase from an `.xsun` file.
 - `sun serve`: Fast dev server with SPA support and HMR.
 
+### 2.3 Universal GUI & GPU Acceleration
+Sun is no longer limited to the browser.
+- **GPU Rendering:** Developers can enable blazing-fast hardware acceleration by setting `use_gpu = True` in their component or project config.
+- **Universal FFI:** Sun components can call functions in C, Rust, or Python with zero-overhead FFI, making it compatible with any ecosystem.
+- **Native GUI:** Primitives for Windowing, Canvas, and Input are built into the VM.
+
 ## 3. Developer Experience: "The Easy Pillar"
 
 - **No Config:** Zero-setup projects. `sun ship` creates a ready-to-go app.

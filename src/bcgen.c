@@ -4,9 +4,11 @@
 #include <string.h>
 
 void bc_init(BytecodeBuffer *bb) {
-    bb->capacity = 1024;
-    bb->size = 0;
-    bb->code = malloc(bb->capacity);
+    if (!bb->code) {
+        bb->capacity = 1024;
+        bb->size = 0;
+        bb->code = malloc(bb->capacity);
+    }
 }
 
 void bc_emit(BytecodeBuffer *bb, uint8_t byte) {

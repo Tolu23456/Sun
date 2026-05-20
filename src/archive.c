@@ -9,12 +9,13 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#define XSUN_MAGIC "XSUN02"
+#define XSUN_MAGIC "XSUN03"
 
 typedef struct {
     char path[256];
     uint32_t size;
     uint32_t original_size;
+    uint32_t mode; /* Preserve file permissions */
     uint8_t  compressed;
     uint8_t  checksum[32];
 } FileHeader;
@@ -46,7 +47,8 @@ static void pack_recursive(FILE *out, const char *base_path, const char *rel_pat
         memset(&fh, 0, sizeof(fh));
         strncpy(fh.path, rel_path, sizeof(fh.path) - 1);
         fh.original_size = (uint32_t)st.st_size;
-        fh.size = fh.original_size; /* No real compression in this prototype */
+        fh.size = fh.original_size;
+        fh.mode = (uint32_t)st.st_mode;
         fh.compressed = 0;
 
         fwrite(&fh, sizeof(fh), 1, out);
@@ -105,6 +107,7 @@ int sun_unpack(const char *archive_path, const char *out_dir) {
         fwrite(buf, 1, fh.size, out);
         free(buf);
         fclose(out);
+        chmod(full_out, (mode_t)fh.mode);
         printf("  unpacked %s (%u bytes)\n", fh.path, fh.size);
     }
 
