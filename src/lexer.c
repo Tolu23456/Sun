@@ -55,6 +55,7 @@ static TokenType keyword_type(const char *start, int len) {
     KW("state",     TOKEN_STATE);
     KW("fn",        TOKEN_FN);
     KW("render",    TOKEN_RENDER);
+    KW("style",     TOKEN_STYLE);
     KW("mount",     TOKEN_MOUNT);
     KW("if",        TOKEN_IF);
     KW("else",      TOKEN_ELSE);
@@ -172,6 +173,7 @@ const char *token_type_name(TokenType t) {
         case TOKEN_STATE:        return "state";
         case TOKEN_FN:           return "fn";
         case TOKEN_RENDER:       return "render";
+        case TOKEN_STYLE:        return "style";
         case TOKEN_MOUNT:        return "mount";
         case TOKEN_IF:           return "if";
         case TOKEN_ELSE:         return "else";

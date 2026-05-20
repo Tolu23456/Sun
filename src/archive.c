@@ -9,11 +9,14 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#define XSUN_MAGIC "XSUN01"
+#define XSUN_MAGIC "XSUN02"
 
 typedef struct {
     char path[256];
     uint32_t size;
+    uint32_t original_size;
+    uint8_t  compressed;
+    uint8_t  checksum[32];
 } FileHeader;
 
 static void pack_recursive(FILE *out, const char *base_path, const char *rel_path) {
@@ -42,7 +45,9 @@ static void pack_recursive(FILE *out, const char *base_path, const char *rel_pat
         FileHeader fh;
         memset(&fh, 0, sizeof(fh));
         strncpy(fh.path, rel_path, sizeof(fh.path) - 1);
-        fh.size = (uint32_t)st.st_size;
+        fh.original_size = (uint32_t)st.st_size;
+        fh.size = fh.original_size; /* No real compression in this prototype */
+        fh.compressed = 0;
 
         fwrite(&fh, sizeof(fh), 1, out);
         char *buf = malloc(fh.size);

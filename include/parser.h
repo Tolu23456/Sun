@@ -12,6 +12,7 @@ typedef enum {
     AST_FN_DECL,
     AST_FN_PARAM,
     AST_RENDER_BLOCK,
+    AST_STYLE_BLOCK,
     AST_MOUNT_CALL,
     AST_IMPORT_DECL,
 

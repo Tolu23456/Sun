@@ -1,20 +1,16 @@
-// Sun 2.0 Multi-page SPA Showcase
+import { Nav } from "./components/Nav.sun";
 
 page Home "/" {
   render {
     <div .sun-app>
+      <Nav />
       <div .sun-hero>
-        <h1>Welcome to Sun SPA</h1>
-        <p>Ultra-fast navigation between pages.</p>
-      </div>
-
-      <div .sun-cards>
-        <button .btn .btn-primary @click={Sun.navigate("/counter")}>Go to Counter</button>
-        <button .btn .btn-secondary @click={Sun.navigate("/about")}>About Sun</button>
+        <h1>Pure Sun SPA</h1>
+        <p>No HTML, No CSS, Just Sun.</p>
       </div>
 
       <div .sun-footer>
-        <span .sun-badge>home page</span>
+        <span .sun-badge>modular architecture</span>
       </div>
     </div>
   }
@@ -25,13 +21,13 @@ page Counter "/counter" {
 
   render {
     <div .sun-app>
-      <h2>Interactive Counter</h2>
+      <Nav />
+      <h2>Modular Counter</h2>
       <div .count-display>{count}</div>
       <div .btn-row>
         <button .btn .btn-danger @click={count--}>-</button>
         <button .btn .btn-primary @click={count++}>+</button>
       </div>
-      <button .btn .btn-secondary @click={Sun.navigate("/")}>Back Home</button>
     </div>
   }
 }
@@ -39,9 +35,9 @@ page Counter "/counter" {
 page About "/about" {
   render {
     <div .sun-app>
-      <h2>About Sun</h2>
-      <p .sun-card>Sun is a cross-platform language for Web, Android, iOS, and Linux.</p>
-      <button .btn .btn-secondary @click={Sun.navigate("/")}>Back Home</button>
+      <Nav />
+      <h2>About Pure Sun</h2>
+      <p .sun-card>Every component is a .sun file with integrated logic and styling.</p>
     </div>
   }
 }

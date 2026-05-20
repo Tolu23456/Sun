@@ -8,6 +8,7 @@ typedef enum {
     TOKEN_STATE,
     TOKEN_FN,
     TOKEN_RENDER,
+    TOKEN_STYLE,
     TOKEN_MOUNT,
     TOKEN_IF,
     TOKEN_ELSE,

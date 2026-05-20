@@ -1,0 +1,14 @@
+component Nav {
+  style {
+    .nav { display: flex; gap: 1rem; margin-bottom: 2rem; }
+    .nav-link { color: #f5a623; cursor: pointer; text-decoration: underline; }
+  }
+
+  render {
+    <nav .nav>
+      <span .nav-link @click={Sun.navigate("/")}>Home</span>
+      <span .nav-link @click={Sun.navigate("/counter")}>Counter</span>
+      <span .nav-link @click={Sun.navigate("/about")}>About</span>
+    </nav>
+  }
+}

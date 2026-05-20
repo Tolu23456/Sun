@@ -62,13 +62,32 @@ page Home "/" { ... }
 page Profile "/user/:id" { ... }
 ```
 
+### 1.6 Pure Sun Modules & Styling
+No more external HTML/CSS. Everything is a `.sun` component.
+```sun
+import { Nav } from "./components/Nav.sun"
+
+component Header {
+  style {
+    .header { background: #333; color: white; padding: 1rem; }
+  }
+
+  render {
+    <header .header>
+      <Nav />
+      <h1>Sun Application</h1>
+    </header>
+  }
+}
+```
+
 ## 2. Runtime & Speed: "The Blazing Pillar"
 
-### 2.1 AOT & Native Compilation
-Sun is compiled Ahead-of-Time.
-- **Target Browser:** Compiles to highly optimized JavaScript + a tiny (<2KB) runtime.
-- **Target Server:** Optimized Native C-compilation. Compiles directly to a standalone binary with no external runtime dependencies.
-- **Cross-Platform (Mobile/Desktop):** Targets Linux, Android, and iOS. Uses native OS hooks for UI (Notifications, Haptics) while sharing logic.
+### 2.1 SunBC & The Sun VM
+Sun moves beyond transpilation. It uses a high-performance bytecode format (**SunBC**) and a custom virtual machine (**Sun VM**).
+- **Target Server:** The server understands SunBC directly. It renders components into a stream that the client displays. No JS/HTML/CSS generation during compilation—just optimized bytecode.
+- **Unified Components:** Everything is a component. Low-level primitives like `button`, `nav`, and `div` are intrinsic components within the VM.
+- **Cross-Platform (Mobile/Desktop):** The Sun VM is ported to Linux, Android, and iOS, providing a consistent execution environment with native OS bindings.
 
 ### 2.2 Built-in Tooling
 The `sun` binary is all you need:

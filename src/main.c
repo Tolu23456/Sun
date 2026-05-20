@@ -10,8 +10,13 @@
 #include "lexer.h"
 #include "parser.h"
 #include "codegen.h"
+#include "bytecode.h"
 #include "server.h"
 #include "archive.h"
+
+/* Forward declarations for bcgen/vm functions (in bcgen.c/vm.c) */
+void bc_generate(ASTNode *program, BytecodeBuffer *bb);
+void sun_vm_execute(BytecodeBuffer *bb);
 
 /* ── ANSI colors ────────────────────────────────────────────────── */
 #define BOLD    "\033[1m"
@@ -211,35 +216,82 @@ static void read_sun_json(const char *project_path, char *title_out, char *entry
 
 /* ── compile one .sun file → HTML ───────────────────────────────── */
 
-static char *compile_sun_file(const char *src_path, const char *title) {
-    char *source = sun_read_file(src_path);
+static ASTNode *parse_file_recursive(const char *src_path, const char *base_dir, SunErrors *errors) {
+    char full_path[SUN_MAX_PATH];
+    if (src_path[0] == '/') snprintf(full_path, sizeof(full_path), "%s", src_path);
+    else snprintf(full_path, sizeof(full_path), "%s/%s", base_dir, src_path);
+
+    char *source = sun_read_file(full_path);
     if (!source) {
-        fprintf(stderr, RED "  error: cannot read '%s'\n" RESET, src_path);
+        sun_error(errors, "Cannot read file: %s", full_path);
         return NULL;
     }
 
+    Lexer lexer;
+    lexer_init(&lexer, source);
+    Parser parser;
+    parser_init(&parser, &lexer, errors);
+
+    ASTNode *program = parser_parse(&parser);
+    free(source);
+
+    /* Resolve imports */
+    ASTNode *prev = NULL;
+    ASTNode *curr = program->members;
+    while (curr) {
+        if (curr->type == AST_IMPORT_DECL) {
+            /* For this demo, we just parse the imported file and merge its members */
+            char new_base[SUN_MAX_PATH];
+            snprintf(new_base, sizeof(new_base), "%s", full_path);
+            char *last_slash = strrchr(new_base, '/');
+            if (last_slash) *last_slash = '\0';
+
+            ASTNode *imported = parse_file_recursive(curr->left->str_val, new_base, errors);
+            if (imported) {
+                ASTNode *imp_head = imported->members;
+                ASTNode *imp_tail = imp_head;
+                if (imp_tail) {
+                    while (imp_tail->next) imp_tail = imp_tail->next;
+                    imp_tail->next = curr;
+                    if (prev) prev->next = imp_head;
+                    else program->members = imp_head;
+                    prev = imp_tail;
+                }
+                imported->members = NULL;
+                ast_free(imported);
+            }
+            ASTNode *next = curr->next;
+            if (prev) prev->next = next;
+            else program->members = next;
+            curr->next = NULL;
+            ast_free(curr);
+            curr = next;
+            continue;
+        }
+        prev = curr;
+        curr = curr->next;
+    }
+
+    return program;
+}
+
+static char *compile_sun_file(const char *src_path, const char *title) {
     SunErrors errors;
     errors.count = 0;
 
-    Lexer  lexer;
-    Parser parser;
-    lexer_init(&lexer, source);
-    parser_init(&parser, &lexer, &errors);
-
-    ASTNode *program = parser_parse(&parser);
+    char base_dir[SUN_MAX_PATH] = ".";
+    ASTNode *program = parse_file_recursive(src_path, base_dir, &errors);
 
     if (errors.count > 0) {
-        fprintf(stderr, RED "\n  Compile errors in %s:\n" RESET, src_path);
+        fprintf(stderr, RED "\n  Compile errors:\n" RESET);
         for (int i = 0; i < errors.count; i++)
             fprintf(stderr, "    %s\n", errors.messages[i]);
         ast_free(program);
-        free(source);
         return NULL;
     }
 
     char *html = codegen_html_page(program, title);
     ast_free(program);
-    free(source);
     return html;
 }
 
@@ -364,6 +416,19 @@ int main(int argc, char *argv[]) {
         const char *target = argc >= 4 ? argv[3] : "web";
         print_banner();
         return cmd_build(path, target);
+    }
+
+    if (strcmp(cmd, "run") == 0) {
+        if (argc < 3) { fprintf(stderr, RED "  error: sun run <file.sun>\n" RESET); return 1; }
+        SunErrors errors; errors.count = 0;
+        ASTNode *program = parse_file_recursive(argv[2], ".", &errors);
+        if (errors.count > 0) return 1;
+        BytecodeBuffer bb;
+        bc_generate(program, &bb);
+        sun_vm_execute(&bb);
+        ast_free(program);
+        free(bb.code);
+        return 0;
     }
 
     if (strcmp(cmd, "serve") == 0) {
