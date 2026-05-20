@@ -389,9 +389,50 @@ static void cmd_clean(const char *project_path) {
     printf(GREEN "  ✓ Cleaned" RESET " %s/dist/\n", project_path);
 }
 
+/* ── fused app execution ────────────────────────────────────────── */
+
+static int run_fused_app(const char *exe_path) {
+    FILE *f = fopen(exe_path, "rb");
+    if (!f) return -1;
+
+    fseek(f, -6, SEEK_END);
+    char footer[7] = {0};
+    if (fread(footer, 6, 1, f) != 1 || strcmp(footer, "SUNAPP") != 0) {
+        fclose(f); return -1;
+    }
+
+    fseek(f, -(6 + (long)sizeof(long)), SEEK_END);
+    long offset;
+    if (fread(&offset, sizeof(long), 1, f) != 1) {
+        fclose(f); return -1;
+    }
+
+    printf(ORANGE BOLD "  ☀  Launching Sun Native App...\n" RESET);
+
+    /* In a real implementation, we would unpack to a temporary dir and run main.sun
+       For this demo, we simulate the VM starting from the embedded archive. */
+    printf(DIM "  (Archive detected at offset %ld)\n" RESET, offset);
+
+    BytecodeBuffer bb;
+    memset(&bb, 0, sizeof(bb));
+    bc_init(&bb);
+    bc_emit(&bb, OP_RENDER_START);
+    bc_emit(&bb, OP_PRIMITIVE_TEXT);
+    bc_emit(&bb, OP_RENDER_END);
+    bc_emit(&bb, OP_HALT);
+
+    sun_vm_execute(&bb);
+
+    fclose(f);
+    return 0;
+}
+
 /* ── main ───────────────────────────────────────────────────────── */
 
 int main(int argc, char *argv[]) {
+    /* Check if we are a fused binary first */
+    if (run_fused_app(argv[0]) == 0) return 0;
+
     if (argc < 2) { print_help(); return 0; }
 
     const char *cmd = argv[1];
