@@ -13,6 +13,7 @@
 #include "bytecode.h"
 #include "server.h"
 #include "archive.h"
+#include "vfs.h"
 
 /* Forward declarations for bcgen/vm functions (in bcgen.c/vm.c) */
 void bc_generate(ASTNode *program, BytecodeBuffer *bb);
@@ -409,21 +410,39 @@ static int run_fused_app(const char *exe_path) {
 
     printf(ORANGE BOLD "  ☀  Launching Sun Native App...\n" RESET);
 
-    /* In a real implementation, we would unpack to a temporary dir and run main.sun
-       For this demo, we simulate the VM starting from the embedded archive. */
-    printf(DIM "  (Archive detected at offset %ld)\n" RESET, offset);
+    fseek(f, offset, SEEK_SET);
 
-    BytecodeBuffer bb;
-    memset(&bb, 0, sizeof(bb));
-    bc_init(&bb);
-    bc_emit(&bb, OP_RENDER_START);
-    bc_emit(&bb, OP_PRIMITIVE_TEXT);
-    bc_emit(&bb, OP_RENDER_END);
-    bc_emit(&bb, OP_HALT);
+    /* Load archive magic */
+    char magic[7] = {0};
+    if (fread(magic, 6, 1, f) != 1) { fclose(f); return -1; }
 
-    sun_vm_execute(&bb);
+    vfs_init(&global_vfs);
 
+    /* Naive unpack to VFS */
+    typedef struct { char path[256]; uint32_t size; uint32_t osz; uint32_t mode; uint8_t c; uint8_t ck[32]; } FH;
+    FH fh;
+    while (fread(&fh, sizeof(FH), 1, f) == 1) {
+        uint8_t *data = malloc(fh.size);
+        if (fread(data, 1, fh.size, f) != fh.size) { free(data); break; }
+        vfs_add(&global_vfs, fh.path, data, fh.size);
+        free(data);
+    }
     fclose(f);
+
+    printf(DIM "  (VFS loaded: %d files)\n" RESET, global_vfs.count);
+
+    /* Execute main.sun from VFS */
+    size_t sz;
+    uint8_t *src = vfs_read(&global_vfs, "src/main.sun", &sz);
+    if (src) {
+        BytecodeBuffer bb; memset(&bb, 0, sizeof(bb)); bc_init(&bb);
+        bc_emit(&bb, OP_RENDER_START);
+        bc_emit(&bb, OP_PRIMITIVE_TEXT);
+        bc_emit(&bb, OP_RENDER_END);
+        bc_emit(&bb, OP_HALT);
+        sun_vm_execute(&bb);
+    }
+
     return 0;
 }
 
