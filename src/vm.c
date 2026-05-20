@@ -2,10 +2,17 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+typedef struct {
+    char key[64];
+    double value;
+} StateVar;
+
 void sun_vm_execute(BytecodeBuffer *bb) {
     int ip = 0;
     double stack[256];
     int sp = 0;
+    StateVar state[32];
+    int state_count = 0;
 
     printf("  [VM] Starting execution... (GPU: %s)\n", bb->use_gpu ? "ENABLED" : "OFF");
     while (ip < bb->size) {
@@ -34,6 +41,14 @@ void sun_vm_execute(BytecodeBuffer *bb) {
             case OP_PRIMITIVE_SPAN: printf("  [VM] <span />\n"); break;
             case OP_PRIMITIVE_NAV: printf("  [VM] <nav />\n"); break;
             case OP_PRIMITIVE_TEXT: printf("  [VM] \"text content\"\n"); break;
+            case OP_LOAD_STATE:
+                stack[sp++] = (state_count > 0) ? state[0].value : 0;
+                break;
+            case OP_STORE_STATE:
+                if (state_count == 0) { sprintf(state[0].key, "var"); state_count = 1; }
+                state[0].value = stack[--sp];
+                printf("  [VM] State updated: %s = %g\n", state[0].key, state[0].value);
+                break;
             case OP_GUI_WINDOW: printf("  [VM] Creating Native GUI Window...\n"); break;
             case OP_GUI_RECT: printf("  [VM] Drawing Rect %s\n", bb->use_gpu ? "[GPU ACCELERATED]" : "[Software]"); break;
             case OP_GPU_SYNC: if (bb->use_gpu) printf("  [VM] GPU Buffer Sync\n"); break;

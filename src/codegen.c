@@ -169,7 +169,9 @@ static void emit_tmpl_expr(CodegenCtx *ctx, const char *raw, int as_event) {
         if (*p == '"' || *p == '\'') {
             char q = *p++; emit(ctx, q == '"' ? "\"" : "'");
             while (*p && *p != q) { char cc[2] = { *p++, '\0' }; emit(ctx, cc); }
-            if (*p) p++; emit(ctx, q == '"' ? "\"" : "'"); continue;
+            if (*p) p++;
+            emit(ctx, q == '"' ? "\"" : "'");
+            continue;
         }
         char cc[2] = { *p++, '\0' }; emit(ctx, cc);
     }

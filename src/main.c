@@ -235,6 +235,7 @@ static ASTNode *parse_file_recursive(const char *src_path, const char *base_dir,
     parser_init(&parser, &lexer, errors);
 
     ASTNode *program = parser_parse(&parser);
+
     free(source);
 
     /* Resolve imports */
@@ -329,6 +330,7 @@ static int cmd_build(const char *project_path, const char *target) {
         Parser parser;
         parser_init(&parser, &lexer, &errs);
         ASTNode *program = parser_parse(&parser);
+
         char *c_code = codegen_native_c(program);
 
         char dist[SUN_MAX_PATH];
@@ -386,70 +388,121 @@ static void cmd_clean(const char *project_path) {
     snprintf(dist, sizeof(dist), "%s/dist", project_path);
     char cmd[SUN_MAX_PATH + 16];
     snprintf(cmd, sizeof(cmd), "rm -rf \"%s\"", dist);
-    system(cmd);
-    printf(GREEN "  ✓ Cleaned" RESET " %s/dist/\n", project_path);
+    if (system(cmd) == 0)
+        printf(GREEN "  ✓ Cleaned" RESET " %s/dist/\n", project_path);
+    else
+        fprintf(stderr, RED "  error: clean failed\n" RESET);
 }
 
 /* ── fused app execution ────────────────────────────────────────── */
 
+void bc_init(BytecodeBuffer *bb);
+void bc_generate(ASTNode *program, BytecodeBuffer *bb);
+
+static ASTNode *parse_vfs_recursive(const char *src_path, const char *base_dir, SunErrors *errors) {
+
+
+    size_t sz;
+    uint8_t *src = vfs_read(&global_vfs, src_path, &sz);
+    if (!src) return NULL;
+
+     Lexer lexer; lexer_init(&lexer, (const char *)src);
+    Parser parser; parser_init(&parser, &lexer, errors);
+    ASTNode *program = parser_parse(&parser);
+
+
+    ASTNode *prev = NULL;
+    ASTNode *curr = program->members;
+    while (curr) {
+        if (curr->type == AST_IMPORT_DECL) {
+            /* Relative path resolution for VFS */
+            char joined[512];
+            if (curr->left->str_val[0] == '.') {
+                snprintf(joined, sizeof(joined), "%s/%s", base_dir, curr->left->str_val);
+            } else {
+                snprintf(joined, sizeof(joined), "%s", curr->left->str_val);
+            }
+            /* Clean path: remove ./ */
+            char clean[512]; int j=0;
+            for(int i=0; joined[i]; i++) {
+                if (joined[i] == '.' && joined[i+1] == '/') { i++; continue; }
+                clean[j++] = joined[i];
+            }
+            clean[j] = '\0';
+            ASTNode *imported = parse_vfs_recursive(clean, base_dir, errors);
+            if (imported) {
+                ASTNode *imp_head = imported->members;
+                ASTNode *imp_tail = imp_head;
+                if (imp_tail) {
+                    while (imp_tail->next) imp_tail = imp_tail->next;
+                    imp_tail->next = curr;
+                    if (prev) prev->next = imp_head;
+                    else program->members = imp_head;
+                    prev = imp_tail;
+                }
+                imported->members = NULL;
+                ast_free(imported);
+            }
+            ASTNode *next = curr->next;
+            if (prev) prev->next = next;
+            else program->members = next;
+            curr->next = NULL;
+            ast_free(curr);
+            curr = next;
+            continue;
+        }
+        prev = curr; curr = curr->next;
+    }
+    return program;
+}
+
 static int run_fused_app(const char *exe_path) {
     FILE *f = fopen(exe_path, "rb");
     if (!f) return -1;
-
     fseek(f, -6, SEEK_END);
     char footer[7] = {0};
-    if (fread(footer, 6, 1, f) != 1 || strcmp(footer, "SUNAPP") != 0) {
-        fclose(f); return -1;
-    }
-
+    if (fread(footer, 6, 1, f) != 1 || strcmp(footer, "SUNAPP") != 0) { fclose(f); return -1; }
     fseek(f, -(6 + (long)sizeof(long)), SEEK_END);
     long offset;
-    if (fread(&offset, sizeof(long), 1, f) != 1) {
-        fclose(f); return -1;
-    }
-
+    if (fread(&offset, sizeof(long), 1, f) != 1) { fclose(f); return -1; }
     printf(ORANGE BOLD "  ☀  Launching Sun Native App...\n" RESET);
-
     fseek(f, offset, SEEK_SET);
-
-    /* Load archive magic */
     char magic[7] = {0};
     if (fread(magic, 6, 1, f) != 1) { fclose(f); return -1; }
-
     vfs_init(&global_vfs);
-
-    /* Naive unpack to VFS */
     typedef struct { char path[256]; uint32_t size; uint32_t osz; uint32_t mode; uint8_t c; uint8_t ck[32]; } FH;
     FH fh;
     while (fread(&fh, sizeof(FH), 1, f) == 1) {
         uint8_t *data = malloc(fh.size);
         if (fread(data, 1, fh.size, f) != fh.size) { free(data); break; }
+        if (fh.c == 1) { for (uint32_t i = 0; i < fh.size; i++) data[i] ^= 0x55; }
         vfs_add(&global_vfs, fh.path, data, fh.size);
         free(data);
     }
     fclose(f);
-
     printf(DIM "  (VFS loaded: %d files)\n" RESET, global_vfs.count);
+    SunErrors errors; errors.count = 0;
 
-    /* Execute main.sun from VFS */
-    size_t sz;
-    uint8_t *src = vfs_read(&global_vfs, "src/main.sun", &sz);
-    if (src) {
+
+
+    ASTNode *program = parse_vfs_recursive("src/main.sun", ".", &errors);
+
+
+
+    if (program && errors.count == 0) {
         BytecodeBuffer bb; memset(&bb, 0, sizeof(bb)); bc_init(&bb);
-        bc_emit(&bb, OP_RENDER_START);
-        bc_emit(&bb, OP_PRIMITIVE_TEXT);
-        bc_emit(&bb, OP_RENDER_END);
-        bc_emit(&bb, OP_HALT);
+        bc_generate(program, &bb);
         sun_vm_execute(&bb);
+        free(bb.code);
     }
-
+    if (program) ast_free(program);
     return 0;
 }
 
-/* ── main ───────────────────────────────────────────────────────── */
-
 int main(int argc, char *argv[]) {
+    setvbuf(stdout, NULL, _IONBF, 0);
     /* Check if we are a fused binary first */
+
     if (run_fused_app(argv[0]) == 0) return 0;
 
     if (argc < 2) { print_help(); return 0; }
@@ -537,7 +590,7 @@ int main(int argc, char *argv[]) {
 
         /* 2. Fuse with self (the sun binary) */
         char out_name[256];
-        snprintf(out_name, sizeof(out_name), "dist/app.%s", fmt);
+        snprintf(out_name, sizeof(out_name), "dist/app.%s", (strcmp(fmt, "AppImage") == 0) ? "AppImage" : fmt);
         sun_mkdir_p("dist");
 
         FILE *fout = fopen(out_name, "wb");
@@ -567,12 +620,12 @@ int main(int argc, char *argv[]) {
                 if (icon) {
                     char icmd[512];
                     snprintf(icmd, sizeof(icmd), "cp %s dist/deb/usr/share/icons/app.png", icon);
-                    system(icmd);
+                    if (system(icmd) != 0) fprintf(stderr, RED "  warning: failed to copy icon\n" RESET);
                 }
                 sun_write_file("dist/deb/DEBIAN/control", "Package: sun-app\nVersion: 1.0\nArchitecture: amd64\nMaintainer: Sun\nDescription: Sun Native App\n");
                 char cmd[512];
                 snprintf(cmd, sizeof(cmd), "cp %s dist/deb/sun-app && chmod +x dist/deb/sun-app", out_name);
-                system(cmd);
+                if (system(cmd) != 0) fprintf(stderr, RED "  warning: failed to copy binary to deb structure\n" RESET);
                 printf(GREEN "  ✓ Package structure ready in dist/deb/\n" RESET);
             }
         } else {
