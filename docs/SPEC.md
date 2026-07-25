@@ -96,6 +96,12 @@ The `sun` binary is all you need:
 - `sun unpack`: Restores a codebase from an `.xsun` file.
 - `sun serve`: Fast dev server with SPA support and HMR.
 
+### 2.4 One-Click Distribution (SunDist)
+Sun is the first web language that builds true native installers out of the box.
+- **Universal Formats:** `sun build --dist [exe|dmg|appimage|deb|apk]`.
+- **Fused Binaries:** Combines the Sun VM and the `.xsun` archive into a single, zero-dependency executable.
+- **Native Assets:** Built-in support for embedding icons, splash screens, and desktop entries.
+
 ### 2.3 Universal GUI & GPU Acceleration
 Sun is no longer limited to the browser.
 - **GPU Rendering:** Developers can enable blazing-fast hardware acceleration by setting `use_gpu = True` in their component or project config.

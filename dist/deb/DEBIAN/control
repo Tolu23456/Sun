@@ -1,0 +1,5 @@
+Package: sun-app
+Version: 1.0
+Architecture: amd64
+Maintainer: Sun
+Description: Sun Native App

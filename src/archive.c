@@ -49,11 +49,12 @@ static void pack_recursive(FILE *out, const char *base_path, const char *rel_pat
         fh.original_size = (uint32_t)st.st_size;
         fh.size = fh.original_size;
         fh.mode = (uint32_t)st.st_mode;
-        fh.compressed = 0;
+        fh.compressed = 1; /* XOR obfuscated */
 
         fwrite(&fh, sizeof(fh), 1, out);
         char *buf = malloc(fh.size);
         fread(buf, 1, fh.size, in);
+        for (uint32_t i = 0; i < fh.size; i++) buf[i] ^= 0x55;
         fwrite(buf, 1, fh.size, out);
         free(buf);
         fclose(in);
@@ -64,7 +65,6 @@ static void pack_recursive(FILE *out, const char *base_path, const char *rel_pat
 int sun_pack(const char *dir_path, const char *out_path) {
     FILE *out = fopen(out_path, "wb");
     if (!out) return -1;
-
     fwrite(XSUN_MAGIC, 6, 1, out);
     pack_recursive(out, dir_path, "");
     fclose(out);
@@ -74,43 +74,26 @@ int sun_pack(const char *dir_path, const char *out_path) {
 int sun_unpack(const char *archive_path, const char *out_dir) {
     FILE *in = fopen(archive_path, "rb");
     if (!in) return -1;
-
     char magic[6];
-    if (fread(magic, 6, 1, in) != 1 || memcmp(magic, XSUN_MAGIC, 6) != 0) {
-        fclose(in);
-        return -2;
-    }
-
+    if (fread(magic, 6, 1, in) != 1 || memcmp(magic, XSUN_MAGIC, 6) != 0) { fclose(in); return -2; }
     mkdir(out_dir, 0755);
-
     FileHeader fh;
     while (fread(&fh, sizeof(fh), 1, in) == 1) {
         char full_out[SUN_MAX_PATH];
         snprintf(full_out, sizeof(full_out), "%s/%s", out_dir, fh.path);
-
-        /* ensure directory exists */
         char *last_slash = strrchr(full_out, '/');
-        if (last_slash) {
-            *last_slash = '\0';
-            sun_mkdir_p(full_out);
-            *last_slash = '/';
-        }
-
+        if (last_slash) { *last_slash = '\0'; sun_mkdir_p(full_out); *last_slash = '/'; }
         FILE *out = fopen(full_out, "wb");
-        if (!out) {
-            fseek(in, fh.size, SEEK_CUR);
-            continue;
-        }
-
+        if (!out) { fseek(in, fh.size, SEEK_CUR); continue; }
         char *buf = malloc(fh.size);
         fread(buf, 1, fh.size, in);
+        if (fh.compressed == 1) { for (uint32_t i = 0; i < fh.size; i++) buf[i] ^= 0x55; }
         fwrite(buf, 1, fh.size, out);
         free(buf);
         fclose(out);
         chmod(full_out, (mode_t)fh.mode);
         printf("  unpacked %s (%u bytes)\n", fh.path, fh.size);
     }
-
     fclose(in);
     return 0;
 }

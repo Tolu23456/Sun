@@ -36,6 +36,13 @@ The `.xsun` format is optimized for "perfect fidelity" distribution:
 - **GPU Backend:** When `use_gpu` is enabled, the VM offloads UI draw calls to a Vulkan/Metal/DirectX abstraction layer.
 - **C-ABI Compatibility:** The Sun VM uses a libffi-based bridge to allow seamless interaction with other programming languages.
 
+## 7. SunDist Architecture
+The distribution engine works by "fusing" the VM and the application:
+1.  **Bootstrap:** A specialized C bootstrap is compiled for the target platform.
+2.  **Archive Injection:** The `.xsun` binary is appended to the bootstrap executable.
+3.  **Runtime Loading:** At launch, the VM detects the appended archive, unpacks it into a memory-mapped virtual filesystem, and executes `main.sun`.
+4.  **Packaging:** Platform-specific tools (makensis, appimagetool, hdiutil) are wrapped to create the final installer.
+
 ## 5. Directory Structure
 - `/src`: Compiler source (C).
 - `/include`: Header files.
